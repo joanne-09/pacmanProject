@@ -64,8 +64,7 @@ Map* create_map(const char * filepath) {
 		M->col_num = 36;
 		game_log("Creating from default map. row = %d col = %d", M->row_num, M->col_num);
 		
-	}
-	else {
+	}else{
 		// TODO-GC-read_txt: use fopen to open a file stream
 		// fopen reference: https://man7.org/linux/man-pages/man3/fopen.3.html
 		// use pFile and fscanf to read from file, just like read from standard input.

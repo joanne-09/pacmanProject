@@ -7,15 +7,17 @@
 #include <stdio.h>
 #include <string.h>
 
-Button button_create(float x, float y, float w, float h, const char* default_image_path, const char* hovered_image_path) {
+Button button_create(float x, float y, float w, float h, const char* default_image_path, const char* hovered_image_path, const char* clicked_image_path) {
 
 	Button button;
 	memset(&button, 0, sizeof(Button));
 
 	button.default_img = load_bitmap(default_image_path);
-	if (hovered_image_path) {
+	if (hovered_image_path) 
 		button.hovered_img = load_bitmap(hovered_image_path);
-	}
+	if (clicked_image_path)
+		button.clicked_img = load_bitmap(clicked_image_path);
+	
 
 	if (!button.default_img) {
 		game_log("failed loading button image!");
@@ -30,11 +32,14 @@ Button button_create(float x, float y, float w, float h, const char* default_ima
 }
 
 void drawButton(Button button) {
-	ALLEGRO_BITMAP* _img = button.hovered_img ? 
-												button.hovered ? 
-													button.hovered_img : 
-													button.default_img : 
-												button.default_img;
+	ALLEGRO_BITMAP* _img;
+	if(button.clicked_img && button.clicked)
+		_img = button.clicked_img;
+	else if(button.hovered_img && button.hovered)
+		_img = button.hovered_img;
+	else
+		_img = button.default_img;
+	
 	al_draw_scaled_bitmap(
 		_img,
 		0, 0,

@@ -27,22 +27,57 @@ static int gameTitleH ;
 // TODO-HACKATHON 3-1: Declare variable for button //done
 // Uncomment and fill the code below
 static Button btnSettings;
-static Button btnScore;
+static Button btnhighScoreBoard;
+
+// for high score board
+char name[5][21];
+int score[5];
 
 static void init() {
 
 	// TODO-HACKATHON 3-2: Create button to settings //done
 	// Uncomment and fill the code below
-	btnSettings = button_create(730, 20, 50, 50, "Assets/settings.png", "Assets/settings2.png");
+	btnSettings = button_create(730, 20, 50, 50, "Assets/settings.png", "Assets/settings2.png", NULL);
+	btnhighScoreBoard = button_create(730, 100, 50, 50, "Assets/scoreBoard.png", "Assets/scoreBoardH.png", NULL);
 
 	gameTitle = load_bitmap("Assets/title.png");
 	gameTitleW = al_get_bitmap_width(gameTitle);
 	gameTitleH = al_get_bitmap_height(gameTitle);
 	stop_bgm(menuBGM);
 	menuBGM = play_bgm(themeMusic, music_volume);
+	
+	if (allowCheat != true) allowCheat = false;
 
+	// read info for high score board
+	FILE* stream = NULL;
+	errno_t err = fopen_s(&stream, "Assets/highScore.txt", "r");
+	if (err) {
+		game_log("file not open successfully");
+		return;
+	}
+	for (int i = 0; i < 5; i++) {
+		int iseof = fscanf(stream, "%s %d\n", name[i], &score[i]);
+		//read till end of file
+		if (iseof !=2) break;
+	}
+	fclose(stream);
 }
 
+//draw high score board, only display top 5 users
+static void drawHighScoreBoard() {
+	// 600*500 box for high score board
+	al_draw_filled_rectangle(100, 150, 700, 650, al_map_rgb(0, 0, 0));
+	al_draw_rectangle(100, 100, 700, 600, al_map_rgb(255, 255, 255), 15);
+	al_draw_text(menuFont, al_map_rgb(255, 255, 255),
+		400, 150, ALLEGRO_ALIGN_CENTER, "HIGH SCORE BOARD");
+	
+	for (int i = 0; i < 5; i++) {
+		if(name[i])
+			al_draw_textf(menuFont, al_map_rgb(255, 255, 255),
+				200, 250 + 50 * i, ALLEGRO_ALIGN_LEFT, "%d: %-20s %05d", i + 1, name[i], score[i]);
+		else break;
+	}
+}
 
 static void draw() {
 
@@ -70,9 +105,11 @@ static void draw() {
 		"PRESS <ENTER>"
 	);
 
-		// TODO-HACKATHON 3-3: Draw button //done
-		// Uncomment and fill the code below
-		drawButton(btnSettings);
+	// TODO-HACKATHON 3-3: Draw button //done
+	drawButton(btnSettings);
+	drawButton(btnhighScoreBoard);
+
+	if (btnhighScoreBoard.clicked) drawHighScoreBoard();
 
 }
 
@@ -81,6 +118,7 @@ static void on_mouse_move(int a, int mouse_x, int mouse_y, int f) {
 	//	TODO-HACKATHON 3-7: Update button's status(hovered), and utilize the function `pnt_in_rect`, which you just implemented
 	//	Uncomment and fill the code below
 	btnSettings.hovered = buttonHover(btnSettings, mouse_x, mouse_y);
+	btnhighScoreBoard.hovered = buttonHover(btnhighScoreBoard, mouse_x, mouse_y);
 }
 
 
@@ -97,22 +135,30 @@ static void on_mouse_move(int a, int mouse_x, int mouse_y, int f) {
 static void on_mouse_down() {
 	if (btnSettings.hovered)
 		game_change_scene(scene_settings_create());
+	if (btnhighScoreBoard.hovered);
+		btnhighScoreBoard.clicked = !btnhighScoreBoard.clicked;
+}
+
+// use for button destroy
+static void destroyButton(static Button btn) {
+	al_destroy_bitmap(btn.hovered_img);
+	al_destroy_bitmap(btn.default_img);
+	al_destroy_bitmap(btn.clicked_img);
 }
 
 static void destroy() {
 	stop_bgm(menuBGM);
 	al_destroy_bitmap(gameTitle);
 	//	TODO-HACKATHON 3-10: Destroy button images //done
-	//	Uncomment and fill the code below
-	al_destroy_bitmap(btnSettings.hovered_img);
-	al_destroy_bitmap(btnSettings.default_img);
+	destroyButton(btnSettings);
+	destroyButton(btnhighScoreBoard);
 }
 
 static void on_key_down(int keycode) {
-
 	switch (keycode) {
 		case ALLEGRO_KEY_ENTER:
-			game_change_scene(scene_main_create());
+			if (!btnhighScoreBoard.clicked) game_change_scene(scene_main_create());
+			else btnhighScoreBoard.clicked = false;
 			break;
 		default:
 			break;
@@ -140,8 +186,6 @@ Scene scene_menu_create(void) {
 	// Uncomment the code below.
 	scene.on_mouse_down = &on_mouse_down;
 	// -------------------------------------
-
-
 
 	// TODO-IF: Register more event callback functions such as keyboard, mouse, ...
 	game_log("Menu scene created");

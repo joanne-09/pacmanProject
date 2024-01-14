@@ -2,6 +2,8 @@
 // No need to do anything for this part. We've already done it for
 // you, so this 2 files is like the default scene template.
 #include "scene_settings.h"
+#include "scene_menu_object.h"
+#include "scene_game.h"
 
 // Variables and functions with 'static' prefix at the top level of a
 // source file is only accessible in that file ("file scope", also
@@ -9,9 +11,15 @@
 // name, they'll be different variables.
 
 /* Define your static vars / function prototypes below. */
+static Button btnCheat;
 
 // TODO-IF: More variables and functions that will only be accessed
 // inside this scene. They should all have the 'static' prefix.
+
+static void init(void) {
+	btnCheat = button_create(100, 50, 50, 50, "Assets/checkBox.png", NULL, "Assets/checkBoxClicked.png");
+	if (allowCheat) btnCheat.clicked = true;
+}
 
 static void draw(void ){
 	al_clear_to_color(al_map_rgb(0, 0, 0));
@@ -23,6 +31,11 @@ static void draw(void ){
 		ALLEGRO_ALIGN_CENTER,
 		"<ENTER> Back to menu"
 	);
+
+	// if allow cheat mode
+	drawButton(btnCheat);
+	al_draw_text(menuFont, al_map_rgb(255, 255, 255), 
+		170, 60, ALLEGRO_ALIGN_LEFT, "Allow cheat mode");
 }
 
 static void on_key_down(int keycode) {
@@ -35,13 +48,38 @@ static void on_key_down(int keycode) {
 	}
 }
 
+static void on_mouse_move(int a, int mouse_x, int mouse_y, int f) {
+	// update button status and utilize the function 'put in rect'
+	btnCheat.hovered = buttonHover(btnCheat, mouse_x, mouse_y);
+}
+
+static void on_mouse_down() {
+	if (btnCheat.hovered) {
+		btnCheat.clicked = !btnCheat.clicked;
+		if (allowCheat == NULL) allowCheat = true;
+		else allowCheat = !allowCheat;
+	}
+}
+
+static void destroy() {
+	// Destroy button images
+	al_destroy_bitmap(btnCheat.hovered_img);
+	al_destroy_bitmap(btnCheat.default_img);
+	al_destroy_bitmap(btnCheat.clicked_img);
+}
+
 // The only function that is shared across files.
 Scene scene_settings_create(void) {
 	Scene scene;
 	memset(&scene, 0, sizeof(Scene));
 	scene.name = "Settings";
+	scene.initialize = &init;
 	scene.draw = &draw;
+	scene.destroy = &destroy;
 	scene.on_key_down = &on_key_down;
+	// register on_mouse_down and on_mouse_move
+	scene.on_mouse_move = &on_mouse_move;
+	scene.on_mouse_down = &on_mouse_down;
 	// TODO-IF: Register more event callback functions such as keyboard, mouse, ...
 	game_log("Settings scene created");
 	return scene;

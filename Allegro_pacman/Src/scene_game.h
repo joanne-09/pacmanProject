@@ -6,6 +6,8 @@
 #define SCENE_GAME_H
 #include "game.h"
 
+bool allowCheat;
+
 Scene scene_main_create(void);
 
 int64_t get_power_up_timer_tick();

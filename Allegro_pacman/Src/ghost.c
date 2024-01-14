@@ -3,7 +3,6 @@
 #include "ghost.h"
 #include "map.h"
 #include "pacman_obj.h"
-#include "scene_game.h"
 
 /* global variables*/
 // [ NOTE ]
@@ -47,6 +46,8 @@ Ghost* ghost_create(int flag) {
 	ghost->flee_sprite = load_bitmap("Assets/ghost_flee.png");
 	ghost->dead_sprite = load_bitmap("Assets/ghost_dead.png");
 
+	ghost->stop_timer = al_create_timer(1.0f);
+
 	// TODO-GC-ghost: Create other type ghost, load corresponding sprites.
 	// TODO-IF: You may design your own special tracking rules.
 	switch (ghost->typeFlag) {
@@ -89,6 +90,7 @@ void ghost_destroy(Ghost* ghost) {
 	al_destroy_bitmap(ghost->move_sprite);
 	al_destroy_bitmap(ghost->flee_sprite);
 	al_destroy_bitmap(ghost->dead_sprite);
+	al_destroy_timer(ghost->stop_timer);
 	free(ghost);
 }
 void ghost_draw(Ghost* ghost) {
@@ -141,8 +143,11 @@ void ghost_draw(Ghost* ghost) {
 		// TODO-PB-animation: ghost going animation //done
 		// *draw ghost->dead_sprite
 		ghostAnimationFacing(ghost, ghost->dead_sprite, 16, offset);
-	}
-	else {
+	}else if(ghost->status == STOP){
+		al_draw_scaled_bitmap(ghost->move_sprite, 0, 0, 16, 16,
+			drawArea.x + fix_draw_pixel_offset_x, drawArea.y + fix_draw_pixel_offset_y,
+			draw_region, draw_region, 0);
+	}else{
 		// TODO-GC-animation: ghost animation //done
 		// *draw ghost->move_sprite
 		if (ghost->objData.moveCD % 64 < 31) {
@@ -175,6 +180,9 @@ void printGhostStatus(GhostStatus S) {
 		case FLEE:
 			game_log("FLEE");
 			break;
+		case STOP:
+			game_log("STOP");
+			break;
 		default:
 			game_log("status error");
 			break;
@@ -200,6 +208,8 @@ bool ghost_movable(const Ghost* ghost, const Map* M, Directions targetDirec, boo
 		case RIGHT:
 			gx += 1;
 			break;
+		case NONE:
+			return true;
 		default:
 			// for none UP, DOWN, LEFT, RIGHT direction u should return false.
 			return false;

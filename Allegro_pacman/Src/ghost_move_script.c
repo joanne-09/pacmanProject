@@ -1,6 +1,7 @@
 #include "ghost.h"
 #include "pacman_obj.h"
 #include "map.h"
+#include "scene_game.h"
 /* Shared variables */
 #define GO_OUT_TIME 512
 extern uint32_t GAME_TICK_CD;
@@ -169,6 +170,18 @@ void ghost_move_script_random(Ghost* ghost, Map* M, Pacman* pacman) {
 		case FLEE:
 			ghost_move_script_FLEE(ghost, M, pacman);
 			break;
+		case STOP:
+			//ghost->objData.nextTryMove = NONE;
+			ghost_NextMove(ghost, NONE);
+			if (!al_get_timer_started(ghost->stop_timer)) {
+				ghost->stop_timer = al_create_timer(1.0f);
+				al_start_timer(ghost->stop_timer);
+			}
+			if (al_get_timer_started(ghost->stop_timer) && al_get_timer_count(ghost->stop_timer) > 5) {
+				al_stop_timer(ghost->stop_timer);
+				ghost->status = FREEDOM;
+			}
+			break;
 		default:
 			break;
 	}
@@ -179,22 +192,25 @@ void ghost_move_script_random(Ghost* ghost, Map* M, Pacman* pacman) {
 	}else if (!ghost_movable(ghost, M, ghost->objData.preMove, false))
 		return;
 
+	
 	switch (ghost->objData.preMove) {
-	case RIGHT:
-		ghost->objData.Coord.x += 1;
-		break;
-	case LEFT:
-		ghost->objData.Coord.x -= 1;
-		break;
-	case UP:
-		ghost->objData.Coord.y -= 1;
-		break;
-	case DOWN:
-		ghost->objData.Coord.y += 1;
-		break;
-	default:
-		break;
+		case RIGHT:
+			ghost->objData.Coord.x += 1;
+			break;
+		case LEFT:
+			ghost->objData.Coord.x -= 1;
+			break;
+		case UP:
+			ghost->objData.Coord.y -= 1;
+			break;
+		case DOWN:
+			ghost->objData.Coord.y += 1;
+			break;
+		default:
+			break;
 	}
+	
+	
 	ghost->objData.facing = ghost->objData.preMove;
 	ghost->objData.moveCD = GAME_TICK_CD;
 }
@@ -232,6 +248,18 @@ void ghost_move_script_shortest_path(Ghost* ghost, Map* M, Pacman* pacman) {
 			break;
 		case FLEE:
 			ghost_move_script_FLEE(ghost, M, pacman);
+			break;
+		case STOP:
+			//ghost->objData.nextTryMove = NONE;
+			ghost_NextMove(ghost, NONE);
+			if (!al_get_timer_started(ghost->stop_timer)) {
+				ghost->stop_timer = al_create_timer(1.0f);
+				al_start_timer(ghost->stop_timer);
+			}
+			if (al_get_timer_started(ghost->stop_timer) && al_get_timer_count(ghost->stop_timer) > 5) {
+				al_stop_timer(ghost->stop_timer);
+				ghost->status = FREEDOM;
+			}
 			break;
 		default:
 			break;

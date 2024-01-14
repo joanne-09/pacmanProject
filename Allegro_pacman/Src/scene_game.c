@@ -1,6 +1,7 @@
 #include <allegro5/allegro_image.h>
 #include <allegro5/allegro_primitives.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "game.h"
 #include "shared.h"
@@ -22,20 +23,32 @@ extern uint32_t GAME_TICK;
 extern ALLEGRO_TIMER* game_tick_timer;
 int game_main_Score = 0;
 bool game_over = false;
+extern bool allowCheat;
 
 /* Internal variables*/
 static ALLEGRO_TIMER* power_up_timer;
 static const int power_up_duration = 10;
 static Pacman* pman;
+static Pacman* pman2;
 static Map* basic_map;
 static Ghost** ghosts;
 bool debug_mode = false;
 bool cheat_mode = false;
-
+bool allowBlockCross = false;
+// check if user have entered the name
+bool allowChangeScene = false;
 // variables for notification
 static int64_t notifyTimer;
 bool ifNotify = false;
 char* notifyStr;
+// varaible for second_pman
+bool enablePman2 = false;
+bool pman2Die = false;
+
+// variables for text box
+char character[21];
+static int offset = 0;
+//FILE* highScoreFile;
 
 /* Declare static function prototypes */
 static void init(void);
@@ -51,6 +64,10 @@ static void on_key_down(int key_code);
 static void on_mouse_down(int btn, int x, int y, int dz);
 static void render_init_screen(void);
 static void draw_hitboxes(void);
+// for high score board
+static void drawTextBox(void);
+static void writeHighScore(void);
+static void sortScore(void);
 
 static void init(void) {
 	game_over = false;
@@ -65,9 +82,9 @@ static void init(void) {
 
 	// create pacman
 	pman = pacman_create();
-	if (!pman) {
-		game_abort("error on creating pacamn\n");
-	}
+	if (!pman) game_abort("error on creating pacamn\n");
+	pman2 = pacman_create();
+	if (!pman2) game_abort("error on creating pacman2\n");
 	
 	// allocate ghost memory
 	// TODO-HACKATHON 2-1: Allocate dynamic memory for ghosts array. //done
@@ -118,8 +135,11 @@ static void checkItem(void) {
 		case 'P':
 			// TODO-GC-PB: ease power bean //probably_done
 			pman->powerUp = true;
+			//set notify
+			notify("Power mode on");
 			pacman_eatItem(pman, 'P');
 			game_main_Score++;
+
 			// stop and reset power_up_timer value
 			al_stop_timer(power_up_timer);
 			power_up_timer = al_create_timer(1.0f);
@@ -158,24 +178,36 @@ static void status_update(void) {
 	for (int i = 0; i < GHOST_NUM; i++) {
 		if (ghosts[i]->status == GO_IN){
 			continue;
-		}else if (ghosts[i]->status == FREEDOM){
+		}else if (ghosts[i]->status == FREEDOM) {
 			// TODO-GC-game_over: use `getDrawArea(..., GAME_TICK_CD)` and `RecAreaOverlap(..., GAME_TICK_CD)` functions to detect if pacman and ghosts collide with each other.
 			// And perform corresponding operations.
 			// [NOTE] You should have some if-else branch here if you want to implement power bean mode.
 			const RecArea parea = getDrawArea((object*)pman, GAME_TICK_CD);
 			const RecArea garea = getDrawArea((object*)ghosts[i], GAME_TICK_CD);
 			
-			if(!cheat_mode && RecAreaOverlap(&parea, &garea)){
+			if(/*!cheat_mode &&*/ RecAreaOverlap(&parea, &garea)) {
 				game_log("collide with ghost\n");
 				al_rest(1.0);
+				// only to play sound
 				pacman_die();
 				game_over = true;
 				break; // animation shouldn't be trigger twice.
+			}
+			// another_pman
+			if (enablePman2) {
+				const RecArea parea2 = getDrawArea((object*)pman2, GAME_TICK_CD);
+				if (RecAreaOverlap(&parea2, &garea)) {
+					game_log("additional pman collide with ghost\n");
+					enablePman2 = false;
+				}
 			}
 		}else if (ghosts[i]->status == FLEE){
 			// TODO-GC-PB: if ghost is collided by pacman, it should go back to the room immediately and come out after a period.
 			//pacman_eatItem(pman, 'G');
 			const RecArea parea = getDrawArea((object*)pman, GAME_TICK_CD);
+			if (enablePman2) {
+				const RecArea parea2 = getDrawArea((object*)pman2, GAME_TICK_CD);
+			}
 			const RecArea garea = getDrawArea((object*)ghosts[i], GAME_TICK_CD);
 
 			if(/*!cheat_mode && */ RecAreaOverlap(&parea, &garea)) {
@@ -200,35 +232,140 @@ static void update(void) {
 			al_start_timer(pman->death_anim_counter);
 		}
 		
+		//go back to menu scene
 		if (al_get_timer_started(pman->death_anim_counter) && al_get_timer_count(pman->death_anim_counter) > 12) {
-			al_stop_timer(pman->death_anim_counter);
-			game_change_scene(scene_menu_create());
+			if (allowChangeScene) {
+				// write the name and the score in the file
+				writeHighScore();
+				//change scene to menu
+				al_stop_timer(pman->death_anim_counter);
+				game_change_scene(scene_menu_create());
+			}
 		}
 		
+		return;
+	}
+	if (pman2Die) {
+		// start the timer if it hasn't been started.
+		// check timer counter.
+		// stop the timer if counter reach desired time.
+		if (!al_get_timer_started(pman2->death_anim_counter)) {
+			pman2->death_anim_counter = al_create_timer(1.0f / 8.0f);
+			if (!pman2->death_anim_counter)
+				game_abort("Error on create timer\n");
+			al_start_timer(pman2->death_anim_counter);
+		}
+
+		//go back to menu scene
+		if (al_get_timer_started(pman2->death_anim_counter) && al_get_timer_count(pman2->death_anim_counter) > 12) {
+			al_stop_timer(pman2->death_anim_counter);
+		}
+
 		return;
 	}
 
 	step();
 	checkItem();
 	status_update();
-	pacman_move(pman, basic_map);
+	pacman_move(pman, basic_map, allowBlockCross);
 	for (int i = 0; i < GHOST_NUM; i++) 
 		ghosts[i]->move_script(ghosts[i], basic_map, pman);
 }
 
-static void draw(void) {
+// TODO-ADVANCED: add a textbox to allow user to enter their name //probably_done
+static void drawTextBox() {
+	// 600*400 box for entering name
+	al_draw_filled_rectangle(100, 150, 700, 550, al_map_rgb(0, 0, 0));
+	al_draw_rectangle(100, 150, 700, 550, al_map_rgb(255, 255, 255), 15);
+	al_draw_text(menuFont, al_map_rgb(255, 255, 255),
+		400, 250, ALLEGRO_ALIGN_CENTER, "Please enter your name:");
+	al_draw_text(menuFont, al_map_rgb(255, 255, 255),
+		400, 450, ALLEGRO_ALIGN_CENTER, "Press <ENTER> to continue");
+	// texting box
+	al_draw_rectangle(150, 300, 650, 400, al_map_rgb(255, 255, 255), 10);
+	// draw character
+	if (character) {
+		character[offset] = '\0';
+		al_draw_textf(menuFont, al_map_rgb(255, 255, 255),
+			180, 340, ALLEGRO_ALIGN_LEFT, "%s", character);
+	}
+}
 
+char name[1000][21];
+int score[1000];
+static void writeHighScore() {
+	// write the name and the score in the file
+	FILE* highScoreFile=NULL;
+	
+	int err = fopen_s(&highScoreFile, "Assets/highScore.txt", "w+");
+	if (err==0) {
+		//TODO-ADVANCED-high_score_board //probably_done //still have a lot to improve
+		if (character) strcpy_s(name[0], 21, character);
+		else strcpy_s(name[0], 21, " ");
+		score[0] = game_main_Score;
+		for (int i = 1;  i < 1000; ++i) {
+			int iseof = fscanf(highScoreFile, "%s %d\n", name[i], &score[i]);
+			//read till end of file
+			if (iseof !=2) break;
+		}
+		sortScore();
+
+		for (int i = 0; i < 1000; i++) {
+			if (name[i] == NULL) break;
+			fprintf(highScoreFile, "%s %d\n", name[i], score[i]);
+		}
+	}else {
+		errno_t err = fopen_s(&highScoreFile, "Assets/highScore.txt", "w+");
+		if(character) fprintf(highScoreFile, "%s %d\n", character , game_main_Score);
+		else fprintf(highScoreFile, "  %d\n", game_main_Score);
+	}
+	fclose(highScoreFile);
+}
+
+static void sortScore() {
+	for (int i = 0; i < 1000; i++) {
+		if(score[i]==0) break;
+		for (int j = i + 1; j < 1000; j++) {
+			if (score[i] < score[j]) {
+				int temp = score[i];
+				score[i] = score[j];
+				score[j] = temp;
+				char tempName[21];
+				strcpy_s(tempName, 21, name[i]);
+				strcpy_s(name[i], 21, name[j]);
+				strcpy_s(name[j], 21, tempName);
+			}
+		}
+	}
+}
+
+static void draw(void) {
 	al_clear_to_color(al_map_rgb(0, 0, 0));
 
 	// TODO-GC-scoring: Draw scoreboard, something your may need is sprinf();
 	al_draw_textf(menuFont, al_map_rgb(255, 255, 255),
-		40, SCREEN_H - 70, ALLEGRO_ALIGN_LEFT, "Score: %d", game_main_Score);
+		40, 30, ALLEGRO_ALIGN_LEFT, "SCORE: %05d", game_main_Score);
 
 	draw_map(basic_map);
 
 	pacman_draw(pman);
+	if (enablePman2) pacman_draw(pman2);
+
+	//game notification
+	if (al_get_timer_count(game_tick_timer) - notifyTimer < 256 && ifNotify) {
+		al_draw_text(menuFont, al_map_rgb(255, 255, 0),
+			SCREEN_W - 30, 30,
+			ALLEGRO_ALIGN_RIGHT, notifyStr
+		);
+	}else ifNotify = false;
+
+	//TODO-ADVANCED: add a textbox to allow user to enter their name
+	if (game_over && al_get_timer_started(pman->death_anim_counter) && al_get_timer_count(pman->death_anim_counter) > 12)
+		drawTextBox();
+
 	if (game_over)
 		return;
+
 	// no drawing below when game over
 	for (int i = 0; i < GHOST_NUM; i++)
 		ghost_draw(ghosts[i]);
@@ -237,14 +374,6 @@ static void draw(void) {
 	if (debug_mode) {
 		draw_hitboxes();
 	}
-
-	//game notification
-	if (al_get_timer_count(game_tick_timer) - notifyTimer < 256 && ifNotify) {
-		al_draw_text(menuFont, al_map_rgb(255, 255, 0),
-			SCREEN_W - 40, SCREEN_H - 70,
-			ALLEGRO_ALIGN_RIGHT, notifyStr
-		);
-	}else ifNotify = false;
 }
 
 //set notification mode and set up string
@@ -281,62 +410,93 @@ static void printinfo(void) {
 	game_log("Speed: %f\n", pman->speed);
 }
 
-
 static void destroy(void) {
 	pacman_destroy(pman);
+	pacman_destroy(pman2);
 	for (int i = 0; i < GHOST_NUM; i++) {
 		ghost_destroy(ghosts[i]);
 	}
 	delete_map(basic_map);
-	free(notifyStr);
+	//free(notifyStr);
 }
 
+int preKey;
 static void on_key_down(int key_code) {
-	switch (key_code)
-	{
-		// TODO-HACKATHON 1-1: Use allegro pre-defined enum ALLEGRO_KEY_<KEYNAME> to controll pacman movement //done
-		// we provided you a function `pacman_NextMove` to set the pacman's next move direction.
-		
-		case ALLEGRO_KEY_W:
-			pacman_NextMove(pman, UP);
-			break;
-		case ALLEGRO_KEY_A:
-			pacman_NextMove(pman, LEFT);
-			break;
-		case ALLEGRO_KEY_S:
-			pacman_NextMove(pman, DOWN);
-			break;
-		case ALLEGRO_KEY_D:
-			pacman_NextMove(pman, RIGHT);
-			break;
-		case ALLEGRO_KEY_C:
-			cheat_mode = !cheat_mode;
-			if (cheat_mode){
-				printf("cheat mode on\n");
-				notify("cheat mode on");
-			}else{
-				printf("cheat mode off\n");
-				notify("cheat mode off");
-			}
-			break;
-		case ALLEGRO_KEY_G:
-			debug_mode = !debug_mode;
-			break;
-		
-		default:
-			break;
-	}
+	allowBlockCross = false;
+	bool ctrlPressed = (preKey==ALLEGRO_KEY_LCTRL) || (preKey==ALLEGRO_KEY_RCTRL);
+	bool shiftPressed = (preKey==ALLEGRO_KEY_LSHIFT) || (preKey==ALLEGRO_KEY_RSHIFT);
 
-	//TODO-ADVANCED-cheat_mode
-	if (cheat_mode) {
-		switch(key_code) {
-			case ALLEGRO_KEY_K:
-				for(int i=0; i<GHOST_NUM; i++)
-					ghosts[i]->status = GO_IN;
+	if (!game_over) {
+		switch (key_code){
+			// TODO-HACKATHON 1-1: Use allegro pre-defined enum ALLEGRO_KEY_<KEYNAME> to controll pacman movement //done
+			// we provided you a function `pacman_NextMove` to set the pacman's next move direction.
+			case ALLEGRO_KEY_W:
+				pacman_NextMove(pman, UP);
+				break;
+			case ALLEGRO_KEY_A:
+				pacman_NextMove(pman, LEFT);
+				break;
+			case ALLEGRO_KEY_S:
+				pacman_NextMove(pman, DOWN);
+				break;
+			case ALLEGRO_KEY_D:
+				pacman_NextMove(pman, RIGHT);
+				break;
+			case ALLEGRO_KEY_C:
+				if (allowCheat) {
+					cheat_mode = !cheat_mode;
+					if (cheat_mode){
+						game_log("cheat mode on");
+						notify("cheat mode on");
+					}else{
+						game_log("cheat mode off");
+						notify("cheat mode off");
+					}
+				}else 
+					notify("cheat mode is not allowed");
+				break;
+			case ALLEGRO_KEY_G:
+				debug_mode = !debug_mode;
+				break;
+		
+			default:
 				break;
 		}
+
+		// TODO-HACKATHON 1-2: Use `pacman_movable` to check if the direction is movable. //done	//TODO-ADVANCED-cheat_mode //probably_done
+		
+		if (cheat_mode) {
+			switch(key_code) {
+				case ALLEGRO_KEY_K:
+					for(int i=0; i<GHOST_NUM; i++)
+						ghosts[i]->status = GO_IN;
+					break;
+				case ALLEGRO_KEY_S:
+					if (ctrlPressed) {
+						notify("Ghost stopped");
+						for(int i=0; i<GHOST_NUM; i++)
+							ghosts[i]->status = STOP;
+					}
+					break;
+				case ALLEGRO_KEY_L:
+					if (ctrlPressed) {
+						notify("Available to cross blocks");
+						allowBlockCross = true;
+					}
+					break;
+				// allow pman2 to draw on screen
+				case ALLEGRO_KEY_P:
+					if(!enablePman2) enablePman2 = true;
+					break;
+			}
+		}
+	}else{
+		if (key_code >= 1 && key_code <= 26 && offset<20) character[offset++] = key_code+'A'-1;
+		else if(key_code>=1 && key_code<=26 && offset>=20) notify("You can only enter 20 characters");
+		else if (key_code == ALLEGRO_KEY_ENTER) allowChangeScene = true;
 	}
 
+	preKey = key_code;
 }
 
 static void on_mouse_down(int btn, int x, int y, int dz) {

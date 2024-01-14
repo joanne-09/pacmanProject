@@ -21,10 +21,11 @@ extern ALLEGRO_SAMPLE* PACMAN_DEATH_SOUND;
 extern uint32_t GAME_TICK;
 extern uint32_t GAME_TICK_CD;
 extern bool game_over;
+extern bool pman2Die;
 extern float effect_volume;
 
 /* Declare static function */
-static bool pacman_movable(const Pacman* pacman, const Map* M, Directions targetDirec) {
+static bool pacman_movable(const Pacman* pacman, const Map* M, Directions targetDirec, bool isBlockCross) {
 	// TODO-HACKATHON 1-2: Determine if the current direction is movable. //done
 	// That is to say, your pacman shouldn't penetrate 'wall' and 'room'
 	// , where room is reserved for ghost to set up.
@@ -54,7 +55,9 @@ static bool pacman_movable(const Pacman* pacman, const Map* M, Directions target
 			return false;
 	}
 
-	if (!is_wall_block(M, px, py) && !is_room_block(M, px, py))
+	if (!is_wall_block(M, px, py) && !is_room_block(M, px, py) && !isBlockCross)
+		return true;
+	else if(isBlockCross && !is_room_block(M, px, py) && px>=0 && px < SCREEN_W && py >= 0 && py < SCREEN_H)
 		return true;
 	else
 		return false;
@@ -163,7 +166,7 @@ void pacman_draw(Pacman* pman) {
 				break;
 		}
 		
-	}else{
+	}else if(game_over || pman2Die){
 		// TODO-GC-animation: Draw die animation(pman->die_sprite) //done
 		// hint: instead of using pman->objData.moveCD, use pman->death_anim_counter to create animation.
 		// refer al_get_timer_count and al_draw_scaled_bitmap. Suggestion frame rate: 8fps.
@@ -175,38 +178,37 @@ void pacman_draw(Pacman* pman) {
 		);
 	}
 }
-void pacman_move(Pacman* pacman, Map* M) {
+void pacman_move(Pacman* pacman, Map* M, bool isBlockCross) {
 	if (!movetime(pacman->speed))
 		return;
 	if (game_over)
 		return;
 
 	int probe_x = pacman->objData.Coord.x, probe_y = pacman->objData.Coord.y;
-	if (pacman_movable(pacman, M, pacman->objData.nextTryMove)) 
+	if (pacman_movable(pacman, M, pacman->objData.nextTryMove, isBlockCross)) 
 		pacman->objData.preMove = pacman->objData.nextTryMove;
-	else if (!pacman_movable(pacman, M, pacman->objData.preMove)) 
+	else if (!pacman_movable(pacman, M, pacman->objData.preMove, isBlockCross)) 
 		return;
 
-	switch (pacman->objData.preMove)
-	{
-	case UP:
-		pacman->objData.Coord.y -= 1;
-		pacman->objData.preMove = UP;
-		break;
-	case DOWN:
-		pacman->objData.Coord.y += 1;
-		pacman->objData.preMove = DOWN;
-		break;
-	case LEFT:
-		pacman->objData.Coord.x -= 1;
-		pacman->objData.preMove = LEFT;
-		break;
-	case RIGHT:
-		pacman->objData.Coord.x += 1;
-		pacman->objData.preMove = RIGHT;
-		break;
-	default:
-		break;
+	switch (pacman->objData.preMove){
+		case UP:
+			pacman->objData.Coord.y -= 1;
+			pacman->objData.preMove = UP;
+			break;
+		case DOWN:
+			pacman->objData.Coord.y += 1;
+			pacman->objData.preMove = DOWN;
+			break;
+		case LEFT:
+			pacman->objData.Coord.x -= 1;
+			pacman->objData.preMove = LEFT;
+			break;
+		case RIGHT:
+			pacman->objData.Coord.x += 1;
+			pacman->objData.preMove = RIGHT;
+			break;
+		default:
+			break;
 	}
 	pacman->objData.facing = pacman->objData.preMove;
 	pacman->objData.moveCD = GAME_TICK_CD;
