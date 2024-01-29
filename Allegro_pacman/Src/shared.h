@@ -14,6 +14,7 @@
 extern ALLEGRO_FONT* font_pirulen_32;
 extern ALLEGRO_FONT* font_pirulen_24;
 extern ALLEGRO_SAMPLE* themeMusic;
+extern ALLEGRO_SAMPLE* themeMusic2;
 extern ALLEGRO_SAMPLE* PACMAN_MOVESOUND;
 extern ALLEGRO_SAMPLE* PACMAN_DEATH_SOUND;
 extern ALLEGRO_FONT* menuFont;

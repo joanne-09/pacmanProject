@@ -23,7 +23,17 @@ extern uint32_t GAME_TICK;
 extern ALLEGRO_TIMER* game_tick_timer;
 int game_main_Score = 0;
 bool game_over = false;
+// select if allow cheat mode
 extern bool allowCheat;
+// select if mute the game
+extern bool mute;
+// change music
+extern bool changeMusic;
+// set different key
+extern int keyset;
+extern int key[4];
+// set different character
+extern int character;
 
 /* Internal variables*/
 static ALLEGRO_TIMER* power_up_timer;
@@ -32,6 +42,8 @@ static Pacman* pman;
 static Pacman* pman2;
 static Map* basic_map;
 static Ghost** ghosts;
+int wasd[4] = { ALLEGRO_KEY_W, ALLEGRO_KEY_A, ALLEGRO_KEY_S, ALLEGRO_KEY_D };
+int arrow[4] = { ALLEGRO_KEY_UP, ALLEGRO_KEY_LEFT, ALLEGRO_KEY_DOWN, ALLEGRO_KEY_RIGHT };
 bool debug_mode = false;
 bool cheat_mode = false;
 bool allowBlockCross = false;
@@ -46,14 +58,14 @@ bool enablePman2 = false;
 bool pman2Die = false;
 
 // variables for text box
-char character[21];
+char nameSet[21];
 static int offset = 0;
 //FILE* highScoreFile;
 
 /* Declare static function prototypes */
 static void init(void);
 static void step(void);
-static void checkItem(void);
+static void pmanCheckItem(Pacman*);
 static void status_update(void);
 static void update(void);
 static void draw(void);
@@ -71,7 +83,12 @@ static void sortScore(void);
 
 static void init(void) {
 	game_over = false;
+	cheat_mode = false;
 	game_main_Score = 0;
+
+	if (keyset) for(int i=0; i<4; i++) key[i]=arrow[i];
+	else for(int i=0; i<4; i++) key[i]=wasd[i];
+
 	// create map
 	//basic_map = create_map(NULL);
 	// TODO-GC-read_txt: Create map from .txt file so that you can design your own map!! //done
@@ -84,6 +101,7 @@ static void init(void) {
 	pman = pacman_create();
 	if (!pman) game_abort("error on creating pacamn\n");
 	pman2 = pacman_create();
+	pman2->addtional = true;
 	if (!pman2) game_abort("error on creating pacman2\n");
 	
 	// allocate ghost memory
@@ -108,19 +126,28 @@ static void init(void) {
 	power_up_timer = al_create_timer(1.0f); // 1 tick per second
 	if (!power_up_timer)
 		game_abort("Error on create timer\n");
+
+	//reset some variables
+	allowChangeScene = false;
+	enablePman2 = false;
+	pman2Die = false;
+	nameSet[0] = '\0';
+	offset = 0;
 	return ;
 }
 
 static void step(void) {
 	if (pman->objData.moveCD > 0)
 		pman->objData.moveCD -= pman->speed;
+	if (enablePman2 && pman2->objData.moveCD > 0)
+		pman2->objData.moveCD -= pman2->speed;
 	for (int i = 0; i < GHOST_NUM; i++) {
 		// important for movement
 		if (ghosts[i]->objData.moveCD > 0)
 			ghosts[i]->objData.moveCD -= ghosts[i]->speed;
 	}
 }
-static void checkItem(void) {
+static void pmanCheckItem(Pacman* pman) {
 	int Grid_x = pman->objData.Coord.x, Grid_y = pman->objData.Coord.y;
 	bool isItem = false;
 	if (Grid_y >= basic_map->row_num - 1 || Grid_y <= 0 || Grid_x >= basic_map->col_num - 1 || Grid_x <= 0)
@@ -128,7 +155,7 @@ static void checkItem(void) {
 	// TODO-HACKATHON 1-3: check which item you are going to eat and use `pacman_eatItem` to deal with it. //done
 	switch (basic_map->map[Grid_y][Grid_x]){
 		case '.':
-			pacman_eatItem(pman, '.');
+			if(!mute) pacman_eatItem(pman, '.');
 			game_main_Score++;
 			isItem = true;
 			break;
@@ -137,7 +164,7 @@ static void checkItem(void) {
 			pman->powerUp = true;
 			//set notify
 			notify("Power mode on");
-			pacman_eatItem(pman, 'P');
+			if(!mute) pacman_eatItem(pman, 'P');
 			game_main_Score++;
 
 			// stop and reset power_up_timer value
@@ -160,12 +187,13 @@ static void checkItem(void) {
 }
 static void status_update(void) {
 	// TODO-PB: check powerUp duration //probably_done
-	if (pman->powerUp){
+	if (pman->powerUp || pman2->powerUp){
 		// Check the value of power_up_timer //emmmm copilot does it, but i don't know if it works
 		// If runs out of time reset all relevant variables and ghost's status
 		// hint: ghost_toggle_FLEE
 		if(al_get_timer_count(power_up_timer) > power_up_duration){
 			pman->powerUp = false;
+			pman2->powerUp = false;
 			al_stop_timer(power_up_timer);
 			for (int i = 0; i < GHOST_NUM; i++) {
 				ghost_toggle_FLEE(ghosts[i], false);
@@ -189,7 +217,7 @@ static void status_update(void) {
 				game_log("collide with ghost\n");
 				al_rest(1.0);
 				// only to play sound
-				pacman_die();
+				if(!mute) pacman_die();
 				game_over = true;
 				break; // animation shouldn't be trigger twice.
 			}
@@ -197,27 +225,36 @@ static void status_update(void) {
 			if (enablePman2) {
 				const RecArea parea2 = getDrawArea((object*)pman2, GAME_TICK_CD);
 				if (RecAreaOverlap(&parea2, &garea)) {
+					al_rest(1.0);
+					if(!mute) pacman_die();
 					game_log("additional pman collide with ghost\n");
-					enablePman2 = false;
+					pman2Die = true;
+					break;
 				}
 			}
 		}else if (ghosts[i]->status == FLEE){
 			// TODO-GC-PB: if ghost is collided by pacman, it should go back to the room immediately and come out after a period.
 			//pacman_eatItem(pman, 'G');
 			const RecArea parea = getDrawArea((object*)pman, GAME_TICK_CD);
-			if (enablePman2) {
-				const RecArea parea2 = getDrawArea((object*)pman2, GAME_TICK_CD);
-			}
 			const RecArea garea = getDrawArea((object*)ghosts[i], GAME_TICK_CD);
 
 			if(/*!cheat_mode && */ RecAreaOverlap(&parea, &garea)) {
+				game_main_Score += 10;
 				ghost_collided(ghosts[i]);
+			}
+			if (enablePman2) {
+				const RecArea parea2 = getDrawArea((object*)pman2, GAME_TICK_CD);
+				if (RecAreaOverlap(&parea2, &garea)) {
+					game_main_Score += 10;
+					ghost_collided(ghosts[i]);
+				}
 			}
 		}
 	}
 }
 
 static void update(void) {
+	//handle when main pman die
 	if (game_over) {
 		// TODO-GC-game_over: start pman->death_anim_counter and schedule a game-over event (e.g change scene to menu) after Pacman's death animation finished
 		// hint: refer al_get_timer_started(...), al_get_timer_count(...), al_stop_timer(...), al_rest(...)
@@ -227,9 +264,11 @@ static void update(void) {
 		// stop the timer if counter reach desired time.
 		if (!al_get_timer_started(pman->death_anim_counter)) {
 			pman->death_anim_counter = al_create_timer(1.0f / 8.0f);
+			if(enablePman2) pman2->death_anim_counter = al_create_timer(1.0f / 8.0f);
 			if (!pman->death_anim_counter)
 				game_abort("Error on create timer\n");
 			al_start_timer(pman->death_anim_counter);
+			if (enablePman2) al_start_timer(pman2->death_anim_counter);
 		}
 		
 		//go back to menu scene
@@ -245,7 +284,8 @@ static void update(void) {
 		
 		return;
 	}
-	if (pman2Die) {
+	//handle when additional pman die
+	else if (pman2Die && enablePman2) {
 		// start the timer if it hasn't been started.
 		// check timer counter.
 		// stop the timer if counter reach desired time.
@@ -255,19 +295,21 @@ static void update(void) {
 				game_abort("Error on create timer\n");
 			al_start_timer(pman2->death_anim_counter);
 		}
-
-		//go back to menu scene
 		if (al_get_timer_started(pman2->death_anim_counter) && al_get_timer_count(pman2->death_anim_counter) > 12) {
 			al_stop_timer(pman2->death_anim_counter);
+			pman2Die = false;
+			enablePman2 = false;
 		}
 
 		return;
 	}
 
 	step();
-	checkItem();
+	pmanCheckItem(pman);
+	if(enablePman2) pmanCheckItem(pman2);
 	status_update();
 	pacman_move(pman, basic_map, allowBlockCross);
+	if(enablePman2) pacman_move(pman2, basic_map, allowBlockCross);
 	for (int i = 0; i < GHOST_NUM; i++) 
 		ghosts[i]->move_script(ghosts[i], basic_map, pman);
 }
@@ -284,40 +326,44 @@ static void drawTextBox() {
 	// texting box
 	al_draw_rectangle(150, 300, 650, 400, al_map_rgb(255, 255, 255), 10);
 	// draw character
-	if (character) {
-		character[offset] = '\0';
+	if (nameSet[0]!='\0') {
+		nameSet[offset] = '\0';
 		al_draw_textf(menuFont, al_map_rgb(255, 255, 255),
-			180, 340, ALLEGRO_ALIGN_LEFT, "%s", character);
+			180, 340, ALLEGRO_ALIGN_LEFT, "%s", nameSet);
 	}
 }
 
 char name[1000][21];
 int score[1000];
+int lines;
 static void writeHighScore() {
 	// write the name and the score in the file
 	FILE* highScoreFile=NULL;
 	
-	int err = fopen_s(&highScoreFile, "Assets/highScore.txt", "w+");
+	int err = fopen_s(&highScoreFile, "Assets/highScore.txt", "r+");
 	if (err==0) {
 		//TODO-ADVANCED-high_score_board //probably_done //still have a lot to improve
-		if (character) strcpy_s(name[0], 21, character);
-		else strcpy_s(name[0], 21, " ");
+		if (offset==0) strcpy_s(name[0], 21, nameSet);
+		else strcpy_s(name[0], 21, "Player");
 		score[0] = game_main_Score;
 		for (int i = 1;  i < 1000; ++i) {
 			int iseof = fscanf(highScoreFile, "%s %d\n", name[i], &score[i]);
+			lines = i;
 			//read till end of file
-			if (iseof !=2) break;
+			if (score[i]==0) break;
 		}
 		sortScore();
+		fclose(highScoreFile);
 
+		int err = fopen_s(&highScoreFile, "Assets/highScore.txt", "w");
 		for (int i = 0; i < 1000; i++) {
-			if (name[i] == NULL) break;
+			if (score[i] == 0) break;
 			fprintf(highScoreFile, "%s %d\n", name[i], score[i]);
 		}
 	}else {
 		errno_t err = fopen_s(&highScoreFile, "Assets/highScore.txt", "w+");
-		if(character) fprintf(highScoreFile, "%s %d\n", character , game_main_Score);
-		else fprintf(highScoreFile, "  %d\n", game_main_Score);
+		if(nameSet) fprintf(highScoreFile, "%s %d\n", nameSet , game_main_Score);
+		else fprintf(highScoreFile, "Player %d\n", game_main_Score);
 	}
 	fclose(highScoreFile);
 }
@@ -427,44 +473,51 @@ static void on_key_down(int key_code) {
 	bool shiftPressed = (preKey==ALLEGRO_KEY_LSHIFT) || (preKey==ALLEGRO_KEY_RSHIFT);
 
 	if (!game_over) {
-		switch (key_code){
-			// TODO-HACKATHON 1-1: Use allegro pre-defined enum ALLEGRO_KEY_<KEYNAME> to controll pacman movement //done
-			// we provided you a function `pacman_NextMove` to set the pacman's next move direction.
-			case ALLEGRO_KEY_W:
-				pacman_NextMove(pman, UP);
-				break;
-			case ALLEGRO_KEY_A:
-				pacman_NextMove(pman, LEFT);
-				break;
-			case ALLEGRO_KEY_S:
-				pacman_NextMove(pman, DOWN);
-				break;
-			case ALLEGRO_KEY_D:
-				pacman_NextMove(pman, RIGHT);
-				break;
-			case ALLEGRO_KEY_C:
-				if (allowCheat) {
-					cheat_mode = !cheat_mode;
-					if (cheat_mode){
-						game_log("cheat mode on");
-						notify("cheat mode on");
-					}else{
-						game_log("cheat mode off");
-						notify("cheat mode off");
+		if (key_code == key[0]) {
+			pacman_NextMove(pman, UP);
+			if (enablePman2) pacman_NextMove(pman2, UP);
+		}else if (key_code == key[1]) {
+			pacman_NextMove(pman, LEFT);
+			if (enablePman2) pacman_NextMove(pman2, LEFT);
+		}else if (key_code == key[2]) {
+			pacman_NextMove(pman, DOWN);
+			if (enablePman2) pacman_NextMove(pman2, DOWN);
+		}else if (key_code == key[3]) {
+			pacman_NextMove(pman, RIGHT);
+			if (enablePman2) pacman_NextMove(pman2, RIGHT);
+		}else {
+			switch (key_code) {
+				// TODO-HACKATHON 1-1: Use allegro pre-defined enum ALLEGRO_KEY_<KEYNAME> to controll pacman movement //done
+				// we provided you a function `pacman_NextMove` to set the pacman's next move direction.
+				case ALLEGRO_KEY_C:
+					if (allowCheat) {
+						cheat_mode = !cheat_mode;
+						if (cheat_mode) {
+							game_log("cheat mode on");
+							notify("cheat mode on");
+						}else {
+							game_log("cheat mode off");
+							notify("cheat mode off");
+						}
+					}else notify("cheat mode is not allowed");
+					break;
+				case ALLEGRO_KEY_G:
+					debug_mode = !debug_mode;
+					break;
+					// allow pman2 to draw on screen
+				case ALLEGRO_KEY_P:
+					if (!enablePman2) {
+						notify("activate pman2");
+						enablePman2 = true;
 					}
-				}else 
-					notify("cheat mode is not allowed");
-				break;
-			case ALLEGRO_KEY_G:
-				debug_mode = !debug_mode;
-				break;
-		
-			default:
-				break;
+					break;
+				default:
+					break;
+			}
 		}
-
-		// TODO-HACKATHON 1-2: Use `pacman_movable` to check if the direction is movable. //done	//TODO-ADVANCED-cheat_mode //probably_done
 		
+		// TODO-HACKATHON 1-2: Use `pacman_movable` to check if the direction is movable. //done	
+		// TODO-ADVANCED-cheat_mode //probably_done
 		if (cheat_mode) {
 			switch(key_code) {
 				case ALLEGRO_KEY_K:
@@ -484,16 +537,16 @@ static void on_key_down(int key_code) {
 						allowBlockCross = true;
 					}
 					break;
-				// allow pman2 to draw on screen
-				case ALLEGRO_KEY_P:
-					if(!enablePman2) enablePman2 = true;
-					break;
 			}
 		}
 	}else{
-		if (key_code >= 1 && key_code <= 26 && offset<20) character[offset++] = key_code+'A'-1;
-		else if(key_code>=1 && key_code<=26 && offset>=20) notify("You can only enter 20 characters");
+		if (key_code >= 1 && key_code <= 26 && offset < 20) {
+			if(shiftPressed) nameSet[offset++] = key_code + 'A' - 1;
+			else nameSet[offset++] = key_code + 'a' - 1;
+		}
+		else if (key_code >= 1 && key_code <= 26 && offset >= 20) notify("You can only enter 20 characters");
 		else if (key_code == ALLEGRO_KEY_ENTER) allowChangeScene = true;
+		else if (key_code == ALLEGRO_KEY_BACKSPACE && offset>0) offset--;
 	}
 
 	preKey = key_code;
@@ -552,4 +605,8 @@ int64_t get_power_up_timer_tick(){
 
 int64_t get_power_up_duration(){
 	return power_up_duration;
+}
+
+int64_t get_game_timer() {
+	return al_get_timer_count(game_tick_timer);
 }

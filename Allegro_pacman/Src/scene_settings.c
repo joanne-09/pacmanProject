@@ -12,13 +12,36 @@
 
 /* Define your static vars / function prototypes below. */
 static Button btnCheat;
+static Button btnMute;
+static Button btnMusic;
+static Button btnKeyArrow;
+static Button btnKeyWASD;
+static Button btnY;
+static Button btnB;
+static Button btnC;
 
 // TODO-IF: More variables and functions that will only be accessed
 // inside this scene. They should all have the 'static' prefix.
+extern int key[4];
 
 static void init(void) {
 	btnCheat = button_create(100, 50, 50, 50, "Assets/checkBox.png", NULL, "Assets/checkBoxClicked.png");
+	btnMute = button_create(100, 110, 50, 50, "Assets/checkBox.png", NULL, "Assets/checkBoxClicked.png");
+	btnMusic = button_create(100, 170, 50, 50, "Assets/checkBox.png", NULL, "Assets/checkBoxClicked.png");
+	btnKeyArrow = button_create(170, 230+60, 210, 142, "Assets/keyArrow.png", "Assets/keyArrowHovered.png", "Assets/keyArrowClicked.png");
+	btnKeyWASD = button_create(470, 230+60, 210, 142, "Assets/keyWASD.png", "Assets/keyWASDHovered.png", "Assets/keyWASDClicked.png");
+	btnY = button_create(170, 530-100+60, 94, 100, "Assets/pacman0.png", "Assets/pacman2.png", "Assets/pacman1.png");
+	btnB = button_create(270, 530-100+60, 94, 100, "Assets/pacman3.png", "Assets/pacman5.png", "Assets/pacman4.png");
+	btnC = button_create(370, 530-100+60, 94, 100, "Assets/pacman6.png", "Assets/pacman8.png", "Assets/pacman7.png");
 	if (allowCheat) btnCheat.clicked = true;
+	if (mute) btnMute.clicked = true;
+	if (keyset) btnKeyArrow.clicked = true;
+	if (changeMusic) btnMusic.clicked = true;
+	else btnKeyWASD.clicked = true;
+	//key[4] = { ALLEGRO_KEY_W, ALLEGRO_KEY_A, ALLEGRO_KEY_S, ALLEGRO_KEY_D };
+	if (character == 1) btnB.clicked = true;
+	else if (character == 2) btnC.clicked = true;
+	else btnY.clicked = true;
 }
 
 static void draw(void ){
@@ -35,7 +58,34 @@ static void draw(void ){
 	// if allow cheat mode
 	drawButton(btnCheat);
 	al_draw_text(menuFont, al_map_rgb(255, 255, 255), 
-		170, 60, ALLEGRO_ALIGN_LEFT, "Allow cheat mode");
+		170, 65, ALLEGRO_ALIGN_LEFT, "Allow cheat mode");
+	// if mute music
+	drawButton(btnMute);
+	al_draw_text(menuFont, al_map_rgb(255, 255, 255),
+		170, 125, ALLEGRO_ALIGN_LEFT, "Mute music");
+	// if change music
+	drawButton(btnMusic);
+	al_draw_text(menuFont, al_map_rgb(255, 255, 255),
+		170, 185, ALLEGRO_ALIGN_LEFT, "Change music");
+	// button for selecting key
+	al_draw_text(menuFont, al_map_rgb(255, 255, 255),
+		170, 195+60, ALLEGRO_ALIGN_LEFT, "Select control key set");
+	drawButton(btnKeyArrow);
+	drawButton(btnKeyWASD);
+	/*al_draw_text(menuFont, al_map_rgb(255, 255, 255),
+		170, 400, ALLEGRO_ALIGN_LEFT, "MOVE UP: W");
+	al_draw_text(menuFont, al_map_rgb(255, 255, 255),
+		170, 440, ALLEGRO_ALIGN_LEFT, "MOVE DOWN: S");
+	al_draw_text(menuFont, al_map_rgb(255, 255, 255),
+		470, 400, ALLEGRO_ALIGN_LEFT, "MOVE LEFT: A");
+	al_draw_text(menuFont, al_map_rgb(255, 255, 255),
+		470, 440, ALLEGRO_ALIGN_LEFT, "MOVE RIGHT: D");*/
+	// button for selecting character
+	al_draw_text(menuFont, al_map_rgb(255, 255, 255),
+		170, 500-100+60, ALLEGRO_ALIGN_LEFT, "Select character");
+	drawButton(btnY);
+	drawButton(btnB);
+	drawButton(btnC);
 }
 
 static void on_key_down(int keycode) {
@@ -51,6 +101,13 @@ static void on_key_down(int keycode) {
 static void on_mouse_move(int a, int mouse_x, int mouse_y, int f) {
 	// update button status and utilize the function 'put in rect'
 	btnCheat.hovered = buttonHover(btnCheat, mouse_x, mouse_y);
+	btnMute.hovered = buttonHover(btnMute, mouse_x, mouse_y);
+	btnMusic.hovered = buttonHover(btnMusic, mouse_x, mouse_y);
+	btnKeyArrow.hovered = buttonHover(btnKeyArrow, mouse_x, mouse_y);
+	btnKeyWASD.hovered = buttonHover(btnKeyWASD, mouse_x, mouse_y);
+	btnY.hovered = buttonHover(btnY, mouse_x, mouse_y);
+	btnB.hovered = buttonHover(btnB, mouse_x, mouse_y);
+	btnC.hovered = buttonHover(btnC, mouse_x, mouse_y);
 }
 
 static void on_mouse_down() {
@@ -59,13 +116,64 @@ static void on_mouse_down() {
 		if (allowCheat == NULL) allowCheat = true;
 		else allowCheat = !allowCheat;
 	}
+	if (btnMute.hovered) {
+		btnMute.clicked = !btnMute.clicked;
+		if (mute == NULL) mute = true;
+		else mute = !mute;
+	}
+	if (btnMusic.hovered) {
+		btnMusic.clicked = !btnMusic.clicked;
+		if (changeMusic == NULL) changeMusic = true;
+		else changeMusic = !changeMusic;
+	}
+	if (btnKeyArrow.hovered) {
+		btnKeyArrow.clicked = true;
+		btnKeyWASD.clicked = false;
+		keyset = 1;
+	}
+	if (btnKeyWASD.hovered) {
+		btnKeyWASD.clicked = true;
+		btnKeyArrow.clicked = false;
+		keyset = 0;
+	}
+	if (btnY.hovered) character = 0;
+	if (btnB.hovered) character = 1;
+	if (btnC.hovered) character = 2;
+	switch (character) {
+		case 1:
+			btnB.clicked = true;
+			btnY.clicked = false;
+			btnC.clicked = false;
+			break;
+		case 2:
+			btnC.clicked = true;
+			btnY.clicked = false;
+			btnB.clicked = false;
+			break;
+		default:
+			btnY.clicked = true;
+			btnB.clicked = false;
+			btnC.clicked = false;
+			break;
+	}
+}
+
+static void destroyButton(static Button btn) {
+	al_destroy_bitmap(btn.hovered_img);
+	al_destroy_bitmap(btn.default_img);
+	al_destroy_bitmap(btn.clicked_img);
 }
 
 static void destroy() {
 	// Destroy button images
-	al_destroy_bitmap(btnCheat.hovered_img);
-	al_destroy_bitmap(btnCheat.default_img);
-	al_destroy_bitmap(btnCheat.clicked_img);
+	destroyButton(btnCheat);
+	destroyButton(btnMute);
+	destroyButton(btnMusic);
+	destroyButton(btnKeyArrow);
+	destroyButton(btnKeyWASD);
+	destroyButton(btnY);
+	destroyButton(btnB);
+	destroyButton(btnC);
 }
 
 // The only function that is shared across files.

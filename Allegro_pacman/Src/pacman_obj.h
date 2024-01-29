@@ -21,6 +21,7 @@ typedef struct Pacman{
 	bitmapdata imgdata;
 	int speed;
 	bool powerUp; // *important: this boolean indicates if pacman is in power bean mode now.
+	bool addtional;
 	ALLEGRO_TIMER* death_anim_counter;
 	ALLEGRO_BITMAP* move_sprite;
 	ALLEGRO_BITMAP* die_sprite;
@@ -30,7 +31,7 @@ Pacman* pacman_create();
 void pacman_destroy(Pacman* pman);
 
 void pacman_draw(Pacman* pacman);
-void pacman_move(Pacman* pacman, Map* M);
+void pacman_move(Pacman* pacman, Map* M, bool isBlockCross);
 void pacman_eatItem(Pacman* pacman, const char Item);
 
 void pacman_NextMove(Pacman* pacman, Directions next);

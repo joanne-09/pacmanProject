@@ -18,7 +18,6 @@ Button button_create(float x, float y, float w, float h, const char* default_ima
 	if (clicked_image_path)
 		button.clicked_img = load_bitmap(clicked_image_path);
 	
-
 	if (!button.default_img) {
 		game_log("failed loading button image!");
 	}

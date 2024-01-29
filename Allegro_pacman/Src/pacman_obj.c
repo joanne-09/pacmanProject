@@ -1,5 +1,6 @@
 #include <allegro5/allegro_primitives.h>
 #include "pacman_obj.h"
+#include "scene_game.h"
 #include "map.h"
 /* Static variables */
 static const int start_grid_x = 25, start_grid_y = 25;		// where to put pacman at the beginning
@@ -79,9 +80,18 @@ Pacman* pacman_create() {
 
 	pman->death_anim_counter = al_create_timer(1.0f / 8.0f);
 	pman->powerUp = false;
+	pman->addtional = false;
 	/* load sprites */
-	pman->move_sprite = load_bitmap("Assets/pacman_move.png");
-	pman->die_sprite = load_bitmap("Assets/pacman_die.png");
+	if (character==1){
+		pman->move_sprite = load_bitmap("Assets/pacman_move_blue.png");
+		pman->die_sprite = load_bitmap("Assets/pacman_die_blue.png");
+	}else if(character==2){
+		pman->move_sprite = load_bitmap("Assets/pacman_move_christmas.png");
+		pman->die_sprite = load_bitmap("Assets/pacman_die.png");
+	}else {
+		pman->move_sprite = load_bitmap("Assets/pacman_move.png");
+		pman->die_sprite = load_bitmap("Assets/pacman_die.png");
+	}
 	return pman;
 
 }
@@ -94,29 +104,38 @@ void pacman_destroy(Pacman* pman) {
 	free(pman);
 }
 
-void pacman_draw(Pacman* pman) {
+void pacman_draw(Pacman* pacman) {
 	// TODO-GC-animation: Draw Pacman and animations
 	// hint: use pman->objData.moveCD to determine which frame of the animation to draw
-	RecArea drawArea = getDrawArea((object *)pman, GAME_TICK_CD);
+	RecArea drawArea = getDrawArea((object *)pacman, GAME_TICK_CD);
 
 	//Draw default image
-	/*al_draw_scaled_bitmap(pman->move_sprite, 0, 0,
+	/*al_draw_scaled_bitmap(pacman->move_sprite, 0, 0,
 		16, 16,
 		drawArea.x + fix_draw_pixel_offset_x, drawArea.y + fix_draw_pixel_offset_y,
 		draw_region, draw_region, 0
 	);*/
 	
 	int offset = 0;
-	if (!game_over) {
+	if (game_over || (pman2Die && pacman->addtional)) {
+		// TODO-GC-animation: Draw die animation(pacman->die_sprite) //done
+		// hint: instead of using pacman->objData.moveCD, use pacman->death_anim_counter to create animation.
+		// refer al_get_timer_count and al_draw_scaled_bitmap. Suggestion frame rate: 8fps.
+		//12 frames in total
+		al_draw_scaled_bitmap(pacman->die_sprite, 16 * al_get_timer_count(pacman->death_anim_counter), 0,
+			16, 16,
+			drawArea.x + fix_draw_pixel_offset_x, drawArea.y + fix_draw_pixel_offset_y,
+			draw_region, draw_region, 0
+		);
+	}else if (!game_over) {
 		//done
-		// TODO-GC-animation: We have two frames for each direction. You can use the value of pman->objData.moveCD to determine which frame of the animation to draw.
+		// TODO-GC-animation: We have two frames for each direction. You can use the value of pacman->objData.moveCD to determine which frame of the animation to draw.
 		// For example, if the value (mod 16) is less than 8, draw 1st frame. Otherwise, draw 2nd frame.
 		// But this frame rate may be a little bit too high. We can use % 32 and draw 1st frame if value is 0~15, and 2nd frame if value is 16~31.
 		
-		if(pman->objData.moveCD % 64 < 31){
+		if(pacman->objData.moveCD % 64 < 31){
 			offset = 0;
-		}
-		else if(pman->objData.moveCD % 64 >= 31){
+		}else if(pacman->objData.moveCD % 64 >= 31){
 			offset = 16;
 		}
 		
@@ -127,55 +146,44 @@ void pacman_draw(Pacman* pman) {
 			e.g. Similarly, if ((val>>4) & 1 == 0) is true then `val % 32` is 0~15, if ((val>>4) & 1 == 1) is true then `val % 32` is 16~31. 
 		*/
 		
-		switch(pman->objData.facing)
+		switch(pacman->objData.facing)
 		{
 			case LEFT:
-				al_draw_scaled_bitmap(pman->move_sprite, 32 + offset, 0,
+				al_draw_scaled_bitmap(pacman->move_sprite, 16*2 + offset, 0,
 					16, 16,
 					drawArea.x + fix_draw_pixel_offset_x, drawArea.y + fix_draw_pixel_offset_y,
 					draw_region, draw_region, 0
 				);
 				break;
 			case RIGHT:
-				al_draw_scaled_bitmap(pman->move_sprite, 0 + offset, 0,
+				al_draw_scaled_bitmap(pacman->move_sprite, 0 + offset, 0,
 					16, 16,
 					drawArea.x + fix_draw_pixel_offset_x, drawArea.y + fix_draw_pixel_offset_y,
 					draw_region, draw_region, 0
 				);
 				break;
 			case UP:
-				al_draw_scaled_bitmap(pman->move_sprite, 64 + offset, 0,
+				al_draw_scaled_bitmap(pacman->move_sprite, 16*4 + offset, 0,
 					16, 16,
 					drawArea.x + fix_draw_pixel_offset_x, drawArea.y + fix_draw_pixel_offset_y,
 					draw_region, draw_region, 0
 				);
 				break;
 			case DOWN:
-				al_draw_scaled_bitmap(pman->move_sprite, 96 + offset, 0,
+				al_draw_scaled_bitmap(pacman->move_sprite, 96 + offset, 0,
 					16, 16,
 					drawArea.x + fix_draw_pixel_offset_x, drawArea.y + fix_draw_pixel_offset_y,
 					draw_region, draw_region, 0
 				);
 				break;
 			default:
-				al_draw_scaled_bitmap(pman->die_sprite, 0, 0,
+				al_draw_scaled_bitmap(pacman->die_sprite, 0, 0,
 					16, 16,
 					drawArea.x + fix_draw_pixel_offset_x, drawArea.y + fix_draw_pixel_offset_y,
 					draw_region, draw_region, 0
 				);
 				break;
 		}
-		
-	}else if(game_over || pman2Die){
-		// TODO-GC-animation: Draw die animation(pman->die_sprite) //done
-		// hint: instead of using pman->objData.moveCD, use pman->death_anim_counter to create animation.
-		// refer al_get_timer_count and al_draw_scaled_bitmap. Suggestion frame rate: 8fps.
-		//12 frames in total
-		al_draw_scaled_bitmap(pman->die_sprite, 16 * al_get_timer_count(pman->death_anim_counter), 0,
-			16, 16,
-			drawArea.x + fix_draw_pixel_offset_x, drawArea.y + fix_draw_pixel_offset_y,
-			draw_region, draw_region, 0
-		);
 	}
 }
 void pacman_move(Pacman* pacman, Map* M, bool isBlockCross) {
@@ -218,12 +226,14 @@ void pacman_eatItem(Pacman* pacman, const char Item) {
 	{
 		case '.':
 			stop_bgm(PACMAN_MOVESOUND_ID);
-			PACMAN_MOVESOUND_ID = play_audio(PACMAN_MOVESOUND, effect_volume);
+			if (changeMusic) PACMAN_MOVESOUND = load_audio("Assets/Music/pacman_eatbean.ogg");
+			PACMAN_MOVESOUND_ID = play_audio(PACMAN_MOVESOUND, 1);
 			break;
 		// TODO-GC-PB: set pacman powerUp mode //done
 		case 'P':
 			stop_bgm(PACMAN_MOVESOUND_ID);
-			PACMAN_MOVESOUND_ID = play_audio(PACMAN_MOVESOUND, effect_volume);
+			if (changeMusic) PACMAN_MOVESOUND = load_audio("Assets/Music/pacman_eatbean.ogg");
+			PACMAN_MOVESOUND_ID = play_audio(PACMAN_MOVESOUND, 2);
 			break;
 		default:
 			break;

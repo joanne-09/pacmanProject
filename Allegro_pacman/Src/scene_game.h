@@ -7,10 +7,18 @@
 #include "game.h"
 
 bool allowCheat;
+bool mute;
+bool changeMusic;
+//0:WASD 1:arrow
+int keyset;
+int key[4];
+//0:yellow 1:blue 2:christmas
+int character;
 
 Scene scene_main_create(void);
 
 int64_t get_power_up_timer_tick();
 int64_t get_power_up_duration();
+int64_t get_game_timer();
 
 #endif

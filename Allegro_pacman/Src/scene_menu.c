@@ -44,7 +44,10 @@ static void init() {
 	gameTitleW = al_get_bitmap_width(gameTitle);
 	gameTitleH = al_get_bitmap_height(gameTitle);
 	stop_bgm(menuBGM);
-	menuBGM = play_bgm(themeMusic, music_volume);
+	if(!mute){
+		if (changeMusic) themeMusic = load_audio("Assets/Music/menu_music2.ogg");
+		menuBGM = play_bgm(themeMusic, music_volume);
+	}
 	
 	if (allowCheat != true) allowCheat = false;
 
@@ -70,11 +73,19 @@ static void drawHighScoreBoard() {
 	al_draw_rectangle(100, 100, 700, 600, al_map_rgb(255, 255, 255), 15);
 	al_draw_text(menuFont, al_map_rgb(255, 255, 255),
 		400, 150, ALLEGRO_ALIGN_CENTER, "HIGH SCORE BOARD");
+	al_draw_text(menuFont, al_map_rgb(255, 255, 255),
+		400, 200, ALLEGRO_ALIGN_CENTER, "TOP 5 PLAYER");
 	
 	for (int i = 0; i < 5; i++) {
-		if(name[i])
-			al_draw_textf(menuFont, al_map_rgb(255, 255, 255),
-				200, 250 + 50 * i, ALLEGRO_ALIGN_LEFT, "%d: %-20s %05d", i + 1, name[i], score[i]);
+		if (score[i] != 0) {
+			if (name[i])
+				al_draw_textf(menuFont, al_map_rgb(255, 255, 255),
+					200, 300 + 50 * i, ALLEGRO_ALIGN_LEFT, "%d: %-20s %05d", i + 1, name[i], score[i]);
+			else
+				al_draw_textf(menuFont, al_map_rgb(255, 255, 255),
+					200, 300 + 50 * i, ALLEGRO_ALIGN_LEFT, "%d: %-20s %05d", i + 1, " \0" , score[i]);
+		}
+
 		else break;
 	}
 }
@@ -135,7 +146,7 @@ static void on_mouse_move(int a, int mouse_x, int mouse_y, int f) {
 static void on_mouse_down() {
 	if (btnSettings.hovered)
 		game_change_scene(scene_settings_create());
-	if (btnhighScoreBoard.hovered);
+	if (btnhighScoreBoard.hovered)
 		btnhighScoreBoard.clicked = !btnhighScoreBoard.clicked;
 }
 

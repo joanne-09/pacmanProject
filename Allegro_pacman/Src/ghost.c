@@ -111,33 +111,23 @@ void ghost_draw(Ghost* ghost) {
 			gets the value of `power_up_timer` and `power_up_duration`.
 		*/ 
 		
-		if (get_power_up_timer_tick() > (get_power_up_duration() * 0.7)){
-			//animation of ghost feet
-			if (ghost->objData.moveCD % 64 < 31) {
-				offset = 0;
-			}else if (ghost->objData.moveCD % 64 >= 31) {
-				offset = 16;
-			}
+		if (get_power_up_timer_tick() > (get_power_up_duration() * 0.85)) {
+			// change image btw blue and white faster
+			if (ghost->objData.moveCD % 32 < 15) bitmap_x_offset = 32;
+		}else if (get_power_up_timer_tick() > (get_power_up_duration() * 0.7)){
 			//change image btw blue and white
-			if (ghost->objData.moveCD % 32 <15){
-				bitmap_x_offset = 32;
-			}
-
-			al_draw_scaled_bitmap(ghost->flee_sprite, 0+bitmap_x_offset+offset, 0, 16, 16,
-				drawArea.x + fix_draw_pixel_offset_x, drawArea.y + fix_draw_pixel_offset_y,
-				draw_region, draw_region, 0
-			);
-		}else{
-			// draw only blue sprite
-			if (ghost->objData.moveCD % 64 < 31) {
-				offset = 0;
-			}else if (ghost->objData.moveCD % 64 >= 31) {
-				offset = 16;
-			}
-			al_draw_scaled_bitmap(ghost->flee_sprite, 0+offset, 0, 16, 16,
-				drawArea.x + fix_draw_pixel_offset_x, drawArea.y + fix_draw_pixel_offset_y,
-				draw_region, draw_region, 0);
+			if (ghost->objData.moveCD % 64 < 31) bitmap_x_offset = 32;
 		}
+
+		if (ghost->objData.moveCD % 64 < 31) {
+			offset = 0;
+		}else if (ghost->objData.moveCD % 64 >= 31) {
+			offset = 16;
+		}
+		al_draw_scaled_bitmap(ghost->flee_sprite, 0+bitmap_x_offset+offset, 0, 16, 16,
+			drawArea.x + fix_draw_pixel_offset_x, drawArea.y + fix_draw_pixel_offset_y,
+			draw_region, draw_region, 0);
+		
 		
 	}else if (ghost->status == GO_IN) {
 		// TODO-PB-animation: ghost going animation //done
